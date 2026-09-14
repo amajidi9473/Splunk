@@ -1,0 +1,36 @@
+index=main sourcetype="Perfmon:CPU"
+| eval CPU=tonumber(Value)
+| timechart span=1h avg(CPU) as CPU
+| eval hour=tonumber(strftime(_time,"%H"))
+| sort 0 _time
+| streamstats count as row
+| eventstats count as total
+| eval split_point=ceil(total*0.8)
+| eval dataset=if(row<=split_point,"train","test")
+
+| appendpipe [
+    where dataset="train"
+    | fit RandomForestRegressor CPU from hour into cpu_rf_model
+]
+
+| where dataset="test"
+
+| apply cpu_rf_model
+| eval squared_error=pow(CPU-'predicted(CPU)',2)
+| eventstats avg(squared_error) as MSE
+| eval RMSE=round(sqrt(MSE),2)
+| rename "predicted(CPU)" as Predicted_CPU
+| eval Type="Test"
+
+| append [
+    | makeresults count=24
+    | streamstats count as n
+    | eval _time=relative_time(now(), "+1d@d")+((n-1)*3600)
+    | eval hour=tonumber(strftime(_time,"%H"))
+    | apply cpu_rf_model
+    | rename "predicted(CPU)" as Predicted_CPU
+    | eval Type="Tomorrow Forecast"
+]
+
+| table _time Type  CPU Predicted_CPU 
+| sort 0 _time
