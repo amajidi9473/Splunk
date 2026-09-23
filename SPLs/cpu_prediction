@@ -1,6 +1,9 @@
 index=main sourcetype="Perfmon:CPU"
 | eval CPU=tonumber(Value)
 | timechart span=1h avg(CPU) as CPU
+
+| where isnotnull(CPU) AND CPU>0
+
 | eval hour=tonumber(strftime(_time,"%H"))
 | sort 0 _time
 | streamstats count as row
@@ -14,8 +17,8 @@ index=main sourcetype="Perfmon:CPU"
 ]
 
 | where dataset="test"
-
 | apply cpu_rf_model
+
 | eval squared_error=pow(CPU-'predicted(CPU)',2)
 | eventstats avg(squared_error) as MSE
 | eval RMSE=round(sqrt(MSE),2)
@@ -32,5 +35,5 @@ index=main sourcetype="Perfmon:CPU"
     | eval Type="Tomorrow Forecast"
 ]
 
-| table _time Type  CPU Predicted_CPU 
+| table _time Type CPU Predicted_CPU 
 | sort 0 _time

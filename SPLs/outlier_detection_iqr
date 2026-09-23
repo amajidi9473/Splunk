@@ -1,0 +1,14 @@
+index=main sourcetype="Perfmon:CPU"
+| eval CPU=tonumber(Value)
+| timechart span=1h avg(CPU) as CPU
+| where isnotnull(CPU) AND CPU>0
+| eventstats perc25(CPU) as Q1 perc75(CPU) as Q3
+| eval IQR=Q3-Q1
+| eval LowerBound=Q1-(1.5*IQR)
+| eval UpperBound=Q3+(1.5*IQR)
+| eval CPU_clean=case(
+    CPU<LowerBound, LowerBound,
+    CPU>UpperBound, UpperBound,
+    true(), CPU
+  )
+| table _time CPU CPU_clean
